@@ -73,43 +73,178 @@ erDiagram
 ## 5. 핵심 쿼리 15개 & 실행 결과
 
 ### 기본 조회
-| # | 설명 | 결과 |
-|---|---|---|
-| Q1 | 가격 5000원 이상 메뉴를 비싼 순으로 조회 | [1.png](images/1.png) |
-| Q2 | 가장 최근 가입한 고객 5명 조회 | [2.png](images/2.png) |
-| Q3 | 현재 판매 중지된 메뉴 조회 | [3.png](images/3.png) |
-| Q4 | 2026년 11월 주문을 시간순으로 조회 | [4.png](images/4.png) |
+
+**Q1. 가격 5000원 이상 메뉴를 비싼 순으로 조회**
+```sql
+SELECT name, price
+FROM menu
+WHERE price >= 5000
+ORDER BY price DESC;
+```
+![Q1](images/1.png)
+
+**Q2. 가장 최근 가입한 고객 5명 조회**
+```sql
+SELECT customer_id, name, joined_at
+FROM customer
+ORDER BY joined_at DESC
+LIMIT 5;
+```
+![Q2](images/2.png)
+
+**Q3. 현재 판매 중지된 메뉴 조회**
+```sql
+SELECT menu_id, name, price
+FROM menu
+WHERE is_available = FALSE;
+```
+![Q3](images/3.png)
+
+**Q4. 2026년 11월 주문을 시간순으로 조회**
+```sql
+SELECT order_id, customer_id, ordered_at, status
+FROM orders
+WHERE ordered_at >= '2026-11-01' AND ordered_at < '2026-12-01'
+ORDER BY ordered_at;
+```
+![Q4](images/4.png)
 
 ### 조인
-| # | 설명 | 결과 |
-|---|---|---|
-| Q5 | (INNER JOIN) 메뉴-카테고리 이름 함께 조회 | [5.png](images/5.png) |
-| Q6 | (INNER JOIN) 주문 상세 내역(누가/언제/무엇을/몇 개/얼마) | [6.png](images/6.png) |
-| Q7 | (LEFT JOIN) 메뉴가 하나도 없는 카테고리 찾기 | [7.png](images/7.png) |
-| Q8 | (LEFT JOIN) 고객별 주문 횟수(주문 없는 고객도 0으로 표시) | [8.png](images/8.png) |
+
+**Q5. (INNER JOIN) 메뉴-카테고리 이름 함께 조회**
+```sql
+SELECT c.name AS category, m.name AS menu, m.price
+FROM menu m
+INNER JOIN category c ON m.category_id = c.category_id
+ORDER BY c.category_id, m.price;
+```
+![Q5](images/5.png)
+
+**Q6. (INNER JOIN) 주문 상세 내역(누가/언제/무엇을/몇 개/얼마)**
+```sql
+SELECT o.order_id, cu.name AS customer, o.ordered_at,
+       m.name AS menu, oi.quantity, oi.quantity * oi.unit_price AS amount
+FROM orders o
+INNER JOIN customer   cu ON o.customer_id = cu.customer_id
+INNER JOIN order_item oi ON o.order_id    = oi.order_id
+INNER JOIN menu       m  ON oi.menu_id    = m.menu_id
+ORDER BY o.order_id;
+```
+![Q6](images/6.png)
+
+**Q7. (LEFT JOIN) 메뉴가 하나도 없는 카테고리 찾기**
+```sql
+SELECT c.category_id, c.name
+FROM category c
+LEFT JOIN menu m ON c.category_id = m.category_id
+WHERE m.menu_id IS NULL;
+```
+![Q7](images/7.png)
+
+**Q8. (LEFT JOIN) 고객별 주문 횟수(주문 없는 고객도 0으로 표시)**
+```sql
+SELECT cu.customer_id, cu.name, COUNT(o.order_id) AS order_count
+FROM customer cu
+LEFT JOIN orders o ON cu.customer_id = o.customer_id
+GROUP BY cu.customer_id, cu.name
+ORDER BY order_count DESC, cu.customer_id;
+```
+![Q8](images/8.png)
 
 ### 집계
-| # | 설명 | 결과 |
-|---|---|---|
-| Q9 | 판매 수량 TOP 5 메뉴 (취소 주문 제외) | [9.png](images/9.png) |
-| Q10 | 카테고리별 메뉴 개수와 평균 가격 | [10.png](images/10.png) |
-| Q11 | 일별 매출 합계 (결제 완료 주문만) | [11.png](images/11.png) |
+
+**Q9. 판매 수량 TOP 5 메뉴 (취소 주문 제외)**
+```sql
+SELECT m.name, SUM(oi.quantity) AS total_qty
+FROM order_item oi
+INNER JOIN menu   m ON oi.menu_id  = m.menu_id
+INNER JOIN orders o ON oi.order_id = o.order_id
+WHERE o.status <> 'CANCELED'
+GROUP BY m.menu_id, m.name
+ORDER BY total_qty DESC
+LIMIT 5;
+```
+![Q9](images/9.png)
+
+**Q10. 카테고리별 메뉴 개수와 평균 가격**
+```sql
+SELECT c.name AS category, COUNT(m.menu_id) AS menu_count, ROUND(AVG(m.price)) AS avg_price
+FROM category c
+INNER JOIN menu m ON c.category_id = m.category_id
+GROUP BY c.category_id, c.name
+ORDER BY avg_price DESC;
+```
+![Q10](images/10.png)
+
+**Q11. 일별 매출 합계 (결제 완료 주문만)**
+```sql
+SELECT DATE(o.ordered_at) AS order_date,
+       SUM(oi.quantity * oi.unit_price) AS daily_sales
+FROM orders o
+INNER JOIN order_item oi ON o.order_id = oi.order_id
+WHERE o.status = 'COMPLETED'
+GROUP BY DATE(o.ordered_at)
+ORDER BY order_date;
+```
+![Q11](images/11.png)
 
 ### 서브쿼리
-| # | 설명 | 결과 |
-|---|---|---|
-| Q12 | 한 번도 주문하지 않은 고객 찾기 | [12.png](images/12.png) |
+
+**Q12. 한 번도 주문하지 않은 고객 찾기**
+```sql
+SELECT customer_id, name, joined_at
+FROM customer
+WHERE customer_id NOT IN (SELECT customer_id FROM orders);
+```
+![Q12](images/12.png)
 
 ### 인덱스
-| # | 설명 | 결과 |
-|---|---|---|
-| Q13 | `orders.ordered_at`에 인덱스 생성 — 날짜 범위로 주문을 조회하는 쿼리(Q4, Q11)가 많아 조회 속도를 위해 적용 | 생성 전 [13_before.png](images/13_before.png) → 생성 후 [13_after.png](images/13_after.png) |
+
+**Q13. `orders.ordered_at`에 인덱스 생성** — 날짜 범위로 주문을 조회하는 쿼리(Q4, Q11)가 많아 조회 속도를 위해 적용
+```sql
+CREATE INDEX idx_orders_ordered_at ON orders (ordered_at);
+SHOW INDEX FROM orders;
+```
+
+생성 전
+![Q13 before](images/13_before.png)
+
+생성 후
+![Q13 after](images/13_after.png)
 
 ### 수정 / 삭제
-| # | 설명 | 결과 |
-|---|---|---|
-| Q14 | 대기 중이던 14번 주문을 완료 처리 (UPDATE) | 전 [14_before.png](images/14_before.png) → 후 [14_after.png](images/14_after.png) |
-| Q15 | 취소된 13번 주문 삭제, `ON DELETE CASCADE`로 주문 상세도 함께 삭제 (DELETE) | 전 [15_before_1.png](images/15_before_1.png) / [15_before_2.png](images/15_before_2.png) → 후 [15_after_1.png](images/15_after_1.png) / [15_after_2.png](images/15_after_2.png) |
+
+**Q14. 대기 중이던 14번 주문을 완료 처리 (UPDATE)**
+```sql
+UPDATE orders
+SET status = 'COMPLETED'
+WHERE order_id = 14;
+
+SELECT order_id, status FROM orders WHERE order_id = 14;
+```
+
+전
+![Q14 before](images/14_before.png)
+
+후
+![Q14 after](images/14_after.png)
+
+**Q15. 취소된 13번 주문 삭제, `ON DELETE CASCADE`로 주문 상세도 함께 삭제 (DELETE)**
+```sql
+DELETE FROM orders
+WHERE order_id = 13;
+
+SELECT * FROM orders     WHERE order_id = 13;  -- 0행
+SELECT * FROM order_item WHERE order_id = 13;  -- 0행
+```
+
+전
+![Q15 before 1](images/15_before_1.png)
+![Q15 before 2](images/15_before_2.png)
+
+후
+![Q15 after 1](images/15_after_1.png)
+![Q15 after 2](images/15_after_2.png)
 
 ## 6. 요구사항 체크리스트
 
